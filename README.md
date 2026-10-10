@@ -51,7 +51,13 @@
 这个衍生版里还有第二位角色「**GPT 小龙女**」——白发龙角，7 个表情，可以单独出现、也可以自己溜达，凑到一起还会跟大肥鱼演双人小剧场：
 
 <p align="center">
-  <img src="docs/xiaolongnv.png" width="300" alt="GPT 小龙女">
+  <img src="docs/xiaolongnv.png" width="280" alt="GPT 小龙女">
+</p>
+
+她的 7 个表情（跟大肥鱼一样，点一下就换）：
+
+<p align="center">
+  <img src="docs/xiaolongnv_expressions.png" width="720" alt="GPT 小龙女的七个表情">
 </p>
 
 ---
