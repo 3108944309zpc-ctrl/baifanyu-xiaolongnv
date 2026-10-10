@@ -5,7 +5,10 @@ android {
     compileSdk 36
 
     defaultConfig {
-        applicationId "com.whalepet"
+        // 换成独立包名：原作（com.whalepet，作者签名）与本衍生版（debug 签名）签名不同，
+        // 同包名会被系统判为「软件包与现有软件包存在冲突」而装不上；换包名后两个 App 可共存。
+        // namespace 仍是 com.whalepet，Java 包名 / R 类 / 所有逻辑一行没动。
+        applicationId "com.whalepet.xiaolongnv"
         minSdk 24
         targetSdk 36
         // 版本号取本分支（fork）的 20 / 0.9.7：本分支在 3428a2b 已升到 18 / 0.9.5，
