@@ -13,8 +13,8 @@ android {
         targetSdk 36
         // 版本号取本分支（fork）的 20 / 0.9.7：本分支在 3428a2b 已升到 18 / 0.9.5，
         // 上游 29 个提交里的最新版本号是 17 / 0.9.0，两者只是序号不是功能，取较大者不回退任何功能。
-        versionCode 21
-        versionName "0.9.8"
+        versionCode 22
+        versionName "0.9.9"
     }
 
     compileOptions {

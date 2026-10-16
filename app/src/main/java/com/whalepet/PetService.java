@@ -667,19 +667,25 @@ public class PetService extends Service implements PetView.Listener, DragonView.
      * "分开的距离不够，很容易再次打闹"。
      * 只往外推、不往回拉，免得把本来已经分开的两个人拽回中间。
      */
-    private void separateAfterInterruptedInteraction() {
+    private void separateAfterInterruptedInteraction(boolean draggingDragon) {
         if (lp == null || dragonLp == null || view == null || dragonView == null) return;
         int gap = Math.max(Math.round(screenW * SEPARATE_GAP_RATIO_OF_SCREEN),
                 Math.round(dp(SEPARATE_GAP_MIN_DP)));
         int mid = ((lp.x + lp.width / 2) + (dragonLp.x + dragonLp.width / 2)) / 2;
         int leftEdge = mid - gap / 2;      // 左边那位的右边缘应该在这儿
         int rightEdge = mid + gap / 2;     // 右边那位的左边缘应该在这儿
-        if (dragonLp.x >= lp.x) {          // 小龙女在右、大肥鱼在左
-            dragonLp.x = Math.max(dragonLp.x, rightEdge);
-            lp.x = Math.min(lp.x, leftEdge - lp.width);
-        } else {                           // 反过来
-            lp.x = Math.max(lp.x, rightEdge);
-            dragonLp.x = Math.min(dragonLp.x, leftEdge - dragonLp.width);
+        boolean dragonRight = dragonLp.x >= lp.x;
+        // 正在被拖的那位**不动** —— 她的位置该由手指决定。
+        // 以前是两位都推，于是"拖小龙女"时大肥鱼会被推到屏幕边上，
+        // 松手时被吸成扒边，屏幕上只剩半个脑袋挂在那儿（用户报过）。
+        if (draggingDragon) {
+            // 拖的是小龙女 → 只把大肥鱼推开
+            lp.x = dragonRight ? Math.min(lp.x, leftEdge - lp.width)
+                               : Math.max(lp.x, rightEdge);
+        } else {
+            // 拖的是大肥鱼 → 只把小龙女推开
+            dragonLp.x = dragonRight ? Math.max(dragonLp.x, rightEdge)
+                                     : Math.min(dragonLp.x, leftEdge - dragonLp.width);
         }
         clamp();
         clampDragon();
@@ -964,6 +970,20 @@ public class PetService extends Service implements PetView.Listener, DragonView.
     // （上游原定义见 git show upstream/main:app/src/main/java/com/whalepet/PetService.java）
 
     private void clamp() {
+        if (view == null || lp == null) return;
+        // 窗口尺寸必须和当前状态一致：趴边就用趴边的窗口、悬空就用悬空的窗口。
+        // 只夹 x/y、不管尺寸的话，某次"重排"（小剧场开演/收工时的 relayoutKeepFootprint）
+        // 会把趴着的她改成悬空大小的窗口 —— 脑袋是按较小视图的底部画的，会落到窗口外，
+        // 屏幕上只剩半个脑袋悬在下沿（用户报过）。这里每次夹位置前先纠一次。
+        if (view.getState() == PetView.STATE_PERCH) {
+            int pw = Math.round(view.perchWindowW()), ph = Math.round(view.perchWindowH());
+            if (lp.width != pw) lp.width = pw;
+            if (lp.height != ph) lp.height = ph;
+        } else {
+            int hw = Math.round(view.windowW()), hh = Math.round(view.windowH());
+            if (lp.width != hw) lp.width = hw;
+            if (lp.height != hh) lp.height = hh;
+        }
         int w = lp.width, h = lp.height;
         if (lp.x < 0) lp.x = 0;
         if (lp.x > screenW - w) lp.x = Math.max(0, screenW - w);
@@ -1565,8 +1585,20 @@ public class PetService extends Service implements PetView.Listener, DragonView.
         WindowManager.LayoutParams p = dragon ? dragonLp : lp;
         View v = dragon ? dragonView : view;
         if (p == null || v == null) return;
-        int nw = dragon ? dragonView.windowW() : Math.round(view.windowW());
-        int nh = dragon ? dragonView.windowH() : Math.round(view.windowH());
+        // 大肥鱼的 windowW()/windowH() 只按"悬空"算，趴边时不能拿它当窗口尺寸：
+        // 否则趴着的那位会被改成悬空大小的窗口，脑袋被画到窗口外，屏幕上只剩半个头。
+        // 小龙女的 DragonView.windowW()/windowH() 内部已经按 state 选尺寸，直接用即可。
+        int nw, nh;
+        if (dragon) {
+            nw = dragonView.windowW();
+            nh = dragonView.windowH();
+        } else if (view.getState() == PetView.STATE_HOVER) {
+            nw = Math.round(view.windowW());
+            nh = Math.round(view.windowH());
+        } else {
+            nw = Math.round(view.perchWindowW());
+            nh = Math.round(view.perchWindowH());
+        }
         if (nw == p.width && nh == p.height) return;
         p.x += (p.width - nw) / 2;
         p.y += p.height - nh;
@@ -1865,7 +1897,9 @@ public class PetService extends Service implements PetView.Listener, DragonView.
         interactions.wake();          // 被碰了 → 醒过来，收掉 Zzz
         handler.removeCallbacks(overlapInteractionTick);
         hideBubble();
-        if (interrupting) separateAfterInterruptedInteraction();
+        // 只推没被拖的那位：正在被拖的这位位置该由手指决定，否则她被推到
+        // 屏幕边上、松手被吸成扒边，屏幕上就只剩半个脑袋挂着（用户报过）。
+        if (interrupting) separateAfterInterruptedInteraction(false);
         perchPull = 0;
     }
 
@@ -1969,7 +2003,7 @@ public class PetService extends Service implements PetView.Listener, DragonView.
         interactions.wake();
         handler.removeCallbacks(overlapInteractionTick);
         hideBubble();
-        if (interrupting) separateAfterInterruptedInteraction();
+        if (interrupting) separateAfterInterruptedInteraction(true);
         dragonPerchPull = 0;
     }
 
