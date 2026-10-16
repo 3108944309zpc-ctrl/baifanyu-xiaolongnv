@@ -975,10 +975,11 @@ public class PetService extends Service implements PetView.Listener, DragonView.
             lp.y = Math.round(screenH - view.perchVisibleH() * BOTTOM_VISIBLE);
             return;
         }
-        int topLimit = -Math.round(h * 0.12f);
-        int bottomLimit = screenH - Math.round(h * 0.88f);
-        if (lp.y < topLimit) lp.y = topLimit;
-        if (lp.y > bottomLimit) lp.y = bottomLimit;
+        // 悬空 / 扒左右边：整个人必须完整留在屏幕里。
+        // 上游原本允许上下各露 12%（topLimit=-12%h、bottomLimit=屏幕高-88%h），
+        // 于是往屏幕上下边缘一拖，她就"半个脑袋挂在屏幕外"、看着像悬空在那里。
+        // 这里和小龙女的 clampDragon() 统一成硬夹：只有趴屏幕下边才允许探出屏幕外。
+        lp.y = Math.max(0, Math.min(screenH - h, lp.y));
     }
 
     // ---- 长按菜单 ----
@@ -1891,7 +1892,9 @@ public class PetService extends Service implements PetView.Listener, DragonView.
         }
 
         if (view.getState() == PetView.STATE_PERCH) {
-            boolean right = prefs.getInt(KEY_EDGE, 0) == 1;
+            // 用 View 身上的实时方向，不读 prefs —— 和小龙女那边同一套，
+            // 免得 prefs 里存的方向跟当前状态不一致时"往里 / 往外"判反。
+            boolean right = view.getPerchEdge() == PetView.EDGE_RIGHT;
             // "往外拉"的方向：贴右边时往左拉才算数，贴左边时往右拉才算数
             perchPull += Math.round(right ? -dx : dx);
             if (perchPull < 0) perchPull = 0;             // 往里推不算
@@ -1920,9 +1923,9 @@ public class PetService extends Service implements PetView.Listener, DragonView.
             perchPull = 0;
             // 合并要点：趴屏幕下边时不能按"贴左/贴右"重算 x —— 她本来就居中，
             // 由 clamp() 把 y 钉回屏幕下沿即可（上游新增的 EDGE_BOTTOM）。
-            int eEnd = prefs.getInt(KEY_EDGE, 0);
+            int eEnd = view.getPerchEdge();
             if (eEnd != PetView.EDGE_BOTTOM) {
-                lp.x = (eEnd == 1) ? screenW - lp.width : 0;
+                lp.x = (eEnd == PetView.EDGE_RIGHT) ? screenW - lp.width : 0;
             }
             clamp();
             try { wm.updateViewLayout(view, lp); } catch (Exception ignored) { }
